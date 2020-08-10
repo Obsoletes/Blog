@@ -26,7 +26,7 @@ namespace Blog.Controllers
 		[HttpGet]
 		public IActionResult Get()
 		{
-			return Ok(VirualFileService.Image.Get());
+			return Ok(VirualFileService.Image.Text2);
 		}
 		[HttpGet("File/{**name}")]
 		[ResponseCache(Duration = 3600)]

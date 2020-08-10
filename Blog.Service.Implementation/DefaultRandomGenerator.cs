@@ -13,9 +13,9 @@ namespace Blog.Service.Implementation
 		{
 			Random = new Random();
 		}
-		public abstract IOptions<Config.Config> Options { get; }
-		public Config.Config Config => Options.Value;
-		public  Random Random { get; }
+		[ReadValueFrom(typeof(IOptions<Config.Config>), "Value")]
+		public abstract Config.Config Config { get; }
+		public Random Random { get; }
 		public int GenerateInterger(int min, int max)
 		{
 			return Random.Next(min, max);

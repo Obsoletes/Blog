@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 namespace Blog.Service
 {
+	[Inject(Extension.Lifetime.Singleton)]
 	public interface IRandomGenerator
 	{
 		string GenerateString(int length, string? set);

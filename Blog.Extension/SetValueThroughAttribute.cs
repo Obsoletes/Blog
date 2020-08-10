@@ -8,15 +8,14 @@ using System.Threading.Tasks;
 namespace Blog
 {
 	[AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
-	sealed public class ReadValueFromAttribute : SpecialActionAttribute
+	public sealed class SetValueThroughAttribute : SpecialActionAttribute
 	{
-		public ReadValueFromAttribute(Type type, string path)
+		public SetValueThroughAttribute(string funcionName, params Type[] para)
 		{
-			Type = type;
-			Path = path;
+			Function = funcionName;
+			Types = para;
 		}
-		public Type Type { get; private set; }
-		public string Path { get; private set; }
+		public string Function { get; }
+		public Type[] Types { get; }
 	}
-
 }

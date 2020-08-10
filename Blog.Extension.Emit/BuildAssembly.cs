@@ -4,6 +4,7 @@ using System.Reflection.Emit;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Diagnostics;
+using System.Collections.Generic;
 
 namespace Blog.Extension.Emit
 {
@@ -19,26 +20,30 @@ namespace Blog.Extension.Emit
 			foreach (Type source in assembly.GetTypes().Where(type => !type.IsSealed))
 			{
 				TypeBuilder typeBuilder = moduleBuilder.DefineType($"{namespaceName}.{source.Name}", TypeAttributes.BeforeFieldInit, source);
-				var properties = source.GetProperties();
-				var types = properties.Select(property =>
+				var properties = source.GetProperties().Where(pro => pro.GetGetMethod()?.IsAbstract ?? false).ToArray();
+				var constructorParameterTypes = properties.SelectMany(property =>
 				{
-					ReadValueFromAttribute? readValueFrom = property.GetCustomAttribute<ReadValueFromAttribute>(); 
-					if (readValueFrom == null)
-						return property.PropertyType;
-					else
-						return readValueFrom.Type;
+					SpecialActionAttribute? atttribute = property.GetCustomAttribute<SpecialActionAttribute>();
+					if (atttribute == null)
+						return Enumerable.Repeat(property.PropertyType, 1);
+					else if (atttribute is ReadValueFromAttribute readValueFrom)
+						return Enumerable.Repeat(readValueFrom.Type, 1);
+					else if (atttribute is SetValueThroughAttribute setValueThrough)
+						return setValueThrough.Types;
+					return Enumerable.Empty<Type>();
 				}).ToArray();
 				if (properties.Length == 0)
 				{
 					typeBuilder.CreateType();
 					continue;
 				}
-				var ctor = typeBuilder.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, types);
+				ConstructorStack stack = new ConstructorStack(constructorParameterTypes);
+				var ctor = typeBuilder.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, constructorParameterTypes);
 				var ilCtor = ctor.GetILGenerator();
 				CallBaseConstructor(source, ilCtor);
 
 				var fields = GenerateFieldsFromProperties(typeBuilder, properties);
-				GenerateConstructor(ilCtor, fields, properties.Select(p => p.GetCustomAttribute<ReadValueFromAttribute>()).ToArray());
+				GenerateConstructor(ilCtor, stack, fields, properties.Select(p => p.GetCustomAttribute<SpecialActionAttribute>()).ToArray(), source);
 
 				for (int i = 0; i < properties.Length; i++)
 				{
@@ -49,7 +54,7 @@ namespace Blog.Extension.Emit
 			}
 			try
 			{
-				generator.GenerateAssembly(assemblyBuilder, @"C:\Users\Devil\Desktop\out.dll");
+				generator.GenerateAssembly(assemblyBuilder, @"D:\out.dll");
 			}
 			catch (Exception ex)
 			{
@@ -74,50 +79,25 @@ namespace Blog.Extension.Emit
 				tb.DefineField($"{info.Name}.{UUID.GenerateRandomString()}",
 				 info.PropertyType, FieldAttributes.Private)).ToArray();
 		}
-		static private void GenerateConstructor(ILGenerator ilCtor, FieldBuilder[] fbs, ReadValueFromAttribute?[] attributes)
+		static private void GenerateConstructor(ILGenerator ilCtor, ConstructorStack stack, FieldBuilder[] fbs, SpecialActionAttribute?[] attributes, Type source)
 		{
-			ReadValueFromAttribute? attribute;
-			if (fbs.Length > 0)
+			SpecialActionAttribute? attribute;
+			for (int i = 0; i < fbs.Length; i++)
 			{
 				ilCtor.Emit(OpCodes.Ldarg_0);
-				ilCtor.Emit(OpCodes.Ldarg_1);
-				attribute = attributes[0];
-				if (attribute != null)
-				{
-					CalcPath(ilCtor, attribute);
-				}
-				ilCtor.Emit(OpCodes.Stfld, fbs[0]);
-			}
-			if (fbs.Length > 1)
-			{
-				ilCtor.Emit(OpCodes.Ldarg_0);
-				ilCtor.Emit(OpCodes.Ldarg_2);
-				attribute = attributes[1];
-				if (attribute != null)
-				{
-					CalcPath(ilCtor, attribute);
-				}
-				ilCtor.Emit(OpCodes.Stfld, fbs[1]);
-			}
-			if (fbs.Length > 2)
-			{
-				ilCtor.Emit(OpCodes.Ldarg_0);
-				ilCtor.Emit(OpCodes.Ldarg_3);
-				attribute = attributes[2];
-				if (attribute != null)
-				{
-					CalcPath(ilCtor, attribute);
-				}
-				ilCtor.Emit(OpCodes.Stfld, fbs[2]);
-			}
-			for (int i = 3; i < fbs.Length; i++)
-			{
-				ilCtor.Emit(OpCodes.Ldarg_0);
-				ilCtor.Emit(OpCodes.Ldarg_S, i + 1);
 				attribute = attributes[i];
-				if (attribute != null)
+				if (attribute == null)
 				{
-					CalcPath(ilCtor, attribute);
+					stack.Pop(1, ilCtor);
+				}
+				else if (attribute is ReadValueFromAttribute readValueFrom)
+				{
+					stack.Pop(1, ilCtor);
+					CalcPath(ilCtor, readValueFrom);
+				}
+				else if (attribute is SetValueThroughAttribute setValueThrough)
+				{
+					CallSetFunction(ilCtor, source, setValueThrough, stack);
 				}
 				ilCtor.Emit(OpCodes.Stfld, fbs[i]);
 			}
@@ -169,6 +149,7 @@ namespace Blog.Extension.Emit
 							return (false, 0);
 					}).Where(c => c.Item1).Select(c => c.Item2))
 					{
+						lastType = GetIndexReturnType(lastType);
 						il.Emit(OpCodes.Ldc_I4, index);
 						il.Emit(OpCodes.Ldelem_Ref);
 					}
@@ -192,13 +173,42 @@ namespace Blog.Extension.Emit
 		}
 		static private MethodInfo GetMethod(Type type, string functionName)
 		{
-			MethodInfo? memberInfo;
-			memberInfo = type.GetMethod(functionName, Type.EmptyTypes);
+			MethodInfo? memberInfo = type.GetMethod(functionName, Type.EmptyTypes);
 			if (memberInfo == null)
 			{
 				throw new InvalidOperationException($"The Function({type.FullName}.{functionName}) don't exist");
 			}
 			return memberInfo;
+		}
+		static private Type GetIndexReturnType(Type type)
+		{
+			try
+			{
+				if (type.IsArray)
+					return type.GetElementType()!;
+				var arr = type.GetProperties().Where(pro => pro.GetIndexParameters().Length > 0).ToArray();
+				return type.GetProperties().Where(pro => pro.GetIndexParameters().Length > 0).First().PropertyType;
+			}
+			catch (NullReferenceException)
+			{
+				throw new InvalidOperationException($"The Type({type.FullName}) don't has Indexers");
+			}
+		}
+		static private void CallSetFunction(ILGenerator il, Type source, SetValueThroughAttribute setValueThrough, ConstructorStack stack)
+		{
+			var functionName = setValueThrough.Function;
+			var types = setValueThrough.Types;
+			MethodInfo? info = source.GetMethod(functionName, types);
+			if (info == null)
+				throw new InvalidOperationException($"The Function({source.FullName}.{functionName}({string.Join(", ", types.Select(t => t.FullName))})) don't exist");
+			if (!info.IsStatic)
+				il.Emit(OpCodes.Ldarg_0);
+			stack.Pop(types.Length, il);
+			if (info.IsStatic)
+				il.Emit(OpCodes.Call, info);
+			else
+				il.Emit(OpCodes.Callvirt, info);
+
 		}
 	}
 }

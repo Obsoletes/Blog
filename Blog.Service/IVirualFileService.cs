@@ -11,6 +11,8 @@ namespace Blog.Service
 	[Inject(Lifetime.Singleton)]
 	public interface IVirualFileService
 	{
+		string Text { get; }
+		string Text2 { get; }
 		string Get();
 		bool IsFileExist(string name);
 		bool IsFileRedirectExist(string name);
