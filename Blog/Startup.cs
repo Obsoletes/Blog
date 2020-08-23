@@ -14,6 +14,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using Blog.Extension;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 
 namespace Blog
 {
@@ -55,8 +57,39 @@ namespace Blog
 				option.AddImplementation(Extension.Emit.BuildAssembly.Build(typeof(Service.Implementation.Anchor).Assembly))
 				.AddImplementation(typeof(Service.Implementation.Anchor).Assembly);
 			});
-			services.Configure<Config.Config>(Configuration.GetSection(Config.Config.Key));
-			services.AddSingleton<Service.Test>();
+			services.Configure<Option.Config>(Configuration.GetSection(Option.Config.Key));
+			services.Configure<Option.CAPTCHAConfig>(Configuration.GetSection(Option.CAPTCHAConfig.Key));
+			services.AddAuthentication(x =>
+			{
+				x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+				x.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+			}).AddJwtBearer("User", x =>
+			 {
+				 var signingKey = Convert.FromBase64String(Configuration["JWT:SigningSecret"]);
+				 x.RequireHttpsMetadata = false;
+				 x.SaveToken = true;
+				 x.TokenValidationParameters = new TokenValidationParameters
+				 {
+					 ValidateIssuerSigningKey = true,
+					 IssuerSigningKey = new SymmetricSecurityKey(signingKey),
+					 ValidateIssuer = true,
+					 ValidateAudience = false,
+					 ValidateLifetime = false
+				 };
+			 }).AddJwtBearer("CaptchaCode", x =>
+			 {
+				 var signingKey = Convert.FromBase64String(Configuration["JWT:SigningSecret"]);
+				 x.RequireHttpsMetadata = false;
+				 x.SaveToken = true;
+				 x.TokenValidationParameters = new TokenValidationParameters
+				 {
+					 ValidateIssuerSigningKey = true,
+					 IssuerSigningKey = new SymmetricSecurityKey(signingKey),
+					 ValidateIssuer = true,
+					 ValidateAudience = false,
+					 ValidateLifetime = false
+				 };
+			 });
 		}
 
 		// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -66,24 +99,6 @@ namespace Blog
 			{
 				app.UseDeveloperExceptionPage();
 			}
-			app.Use(async (context, next) =>
-		   {
-			   try
-			   {
-				   await next();
-			   }
-			   catch (Exception ex)
-			   {
-				   Console.WriteLine("Configure");
-				   Console.WriteLine(ex.ToString());
-				   Console.WriteLine("InnerException");
-				   Console.WriteLine(ex.InnerException?.ToString());
-				   Console.WriteLine("Message");
-				   Console.WriteLine(ex.Message);
-				   throw;
-			   }
-
-		   });
 			app.UseHttpsRedirection();
 			app.UseResponseCaching();
 			app.UseRouting();

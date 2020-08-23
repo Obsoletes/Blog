@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using System.IO;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using System.Drawing;
 
 namespace Blog.Controllers
 {
@@ -17,27 +19,26 @@ namespace Blog.Controllers
 		private Service.IVirualFileHub VirualFileService { get; }
 		private ILogger<VirualFileController> Logger { get; }
 		private FileExtensionContentTypeProvider FileExtensionContentTypeProvider { get; }
-		public VirualFileController(Service.IVirualFileHub virualFileService, ILogger<VirualFileController> logger)
+		private Option.CAPTCHAConfig CAPTCHAConfig { get; }
+		public VirualFileController(Service.IVirualFileHub virualFileService, ILogger<VirualFileController> logger, IOptions<Option.CAPTCHAConfig> options)
 		{
 			VirualFileService = virualFileService;
 			Logger = logger;
 			FileExtensionContentTypeProvider = new FileExtensionContentTypeProvider();
+			CAPTCHAConfig = options.Value;
 		}
 		[HttpGet]
 		public IActionResult Get()
 		{
-			return Ok(VirualFileService.Image.Text2);
+			return Ok();
 		}
 		[HttpGet("File/{**name}")]
 		[ResponseCache(Duration = 3600)]
 		public ActionResult<Stream> GetFile(string name)
 		{
-			Logger.BeginScope(name);
-			Logger.LogInformation(VirualFileService.GetType().FullName);
-			Logger.LogInformation(VirualFileService.Image.GetType().FullName);
-			if (VirualFileService.Image.IsFileExist(name))
+			if (VirualFileService.File.IsFileExist(name))
 			{
-				var info = VirualFileService.Image.ReadFile(name);
+				var info = VirualFileService.File.ReadFile(name);
 				Logger.LogInformation("{0} exist at {1}", name, info.FullName);
 				if (!FileExtensionContentTypeProvider.TryGetContentType(info.Name, out string contentType))
 				{
@@ -46,16 +47,34 @@ namespace Blog.Controllers
 				Logger.LogInformation("ContentType:", contentType);
 				return File(info.OpenRead(), contentType);
 			}
-			else if (VirualFileService.Image.IsFileRedirectExist(name))
+			else if (VirualFileService.File.IsFileRedirectExist(name))
 			{
-
-				string redirect = VirualFileService.Image.ReadRedirect(name);
+				string redirect = VirualFileService.File.ReadRedirect(name);
 				Logger.LogInformation("{0} redirect exist.redirect to {1}", name, redirect);
 				if (redirect != name)
 					return RedirectPermanent(redirect);
 			}
 			Logger.LogInformation("not found");
 			return NotFound();
+		}
+		[HttpGet("VerifyCode")]
+		[ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
+		public ActionResult<Stream> GetVerifyCode([FromQuery]Model.VerifyCodeConfig config)
+		{
+			var style = config.Style.GetValueOrDefault(CAPTCHAConfig.Style);
+			if (style == Option.CAPTCHAStyle.Auto)
+			{
+				style = CAPTCHAConfig.Style;
+			}
+			int width = Math.Min(CAPTCHAConfig.MaxWidth, config.Width.GetValueOrDefault(int.MaxValue));
+			int height = Math.Min(CAPTCHAConfig.MaxHeight, config.Height.GetValueOrDefault(int.MaxValue));
+			Color bgcolor = style == Option.CAPTCHAStyle.Light ? CAPTCHAConfig.LightBackgroundColor : CAPTCHAConfig.DarkBackgroundColor;
+			Color fgcolor = style == Option.CAPTCHAStyle.Light ? CAPTCHAConfig.LightFontColor : CAPTCHAConfig.DarkFontColor;
+
+			var (Code, Image) = VirualFileService.CAPTCHAService.GetCAPTCHA(CAPTCHAConfig.Length, CAPTCHAConfig.CharSet,
+			width, height, bgcolor, fgcolor);
+			Response.Headers.Add("X-Code", Code);
+			return File(Image, "image/png");
 		}
 	}
 }

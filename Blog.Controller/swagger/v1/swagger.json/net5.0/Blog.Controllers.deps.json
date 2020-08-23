@@ -8,6 +8,8 @@
     ".NETCoreApp,Version=v5.0": {
       "Blog.Controllers/1.0.0": {
         "dependencies": {
+          "Blog.Model": "1.0.0",
+          "Blog.Option": "1.0.0",
           "Blog.Service": "1.0.0",
           "Microsoft.AspNetCore.Mvc.Core": "2.2.5",
           "Microsoft.AspNetCore.StaticFiles": "2.2.0"
@@ -773,6 +775,19 @@
           "Blog.Extension.dll": {}
         }
       },
+      "Blog.Model/1.0.0": {
+        "dependencies": {
+          "Blog.Option": "1.0.0"
+        },
+        "runtime": {
+          "Blog.Model.dll": {}
+        }
+      },
+      "Blog.Option/1.0.0": {
+        "runtime": {
+          "Blog.Option.dll": {}
+        }
+      },
       "Blog.Service/1.0.0": {
         "dependencies": {
           "Blog.Extension": "1.0.0"
@@ -1315,6 +1330,16 @@
       "hashPath": "system.xml.xdocument.4.0.11.nupkg.sha512"
     },
     "Blog.Extension/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Blog.Model/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Blog.Option/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

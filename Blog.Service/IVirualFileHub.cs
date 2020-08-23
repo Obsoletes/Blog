@@ -10,7 +10,7 @@ namespace Blog.Service
 	[Inject(Lifetime.Singleton)]
 	public interface IVirualFileHub
 	{
-		IVirualFileService Image { get; }
+		IVirualFileService File { get; }
 		ICAPTCHAService CAPTCHAService { get; }
 	}
 }

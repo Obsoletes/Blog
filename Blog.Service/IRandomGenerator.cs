@@ -9,7 +9,7 @@ namespace Blog.Service
 	[Inject(Extension.Lifetime.Singleton)]
 	public interface IRandomGenerator
 	{
-		string GenerateString(int length, string? set);
+		string GenerateString(int length, string set);
 		int GenerateInterger(int min, int max);
 	}
 }

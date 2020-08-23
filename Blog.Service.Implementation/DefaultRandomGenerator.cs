@@ -13,17 +13,20 @@ namespace Blog.Service.Implementation
 		{
 			Random = new Random();
 		}
-		[ReadValueFrom(typeof(IOptions<Config.Config>), "Value")]
-		public abstract Config.Config Config { get; }
 		public Random Random { get; }
 		public int GenerateInterger(int min, int max)
 		{
 			return Random.Next(min, max);
 		}
 
-		public string GenerateString(int length, string? set)
+		public string GenerateString(int length, string set)
 		{
-			throw new NotImplementedException();
+			StringBuilder @string = new StringBuilder(length);
+			for (int i = 0; i < length; i++)
+			{
+				@string.Append(set[GenerateInterger(0, set.Length)]);
+			}
+			return @string.ToString();
 		}
 	}
 }

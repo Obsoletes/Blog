@@ -6,4 +6,8 @@
 
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Blog.Option\Blog.Option.csproj" />
+  </ItemGroup>
+
 </Project>

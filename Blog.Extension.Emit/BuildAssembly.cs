@@ -208,7 +208,6 @@ namespace Blog.Extension.Emit
 				il.Emit(OpCodes.Call, info);
 			else
 				il.Emit(OpCodes.Callvirt, info);
-
 		}
 	}
 }
